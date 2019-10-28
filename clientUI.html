@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>testing communication</title>
+    <script src ="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+
+
+</head>
+
+<div id="app">
+    <p>status: {{this.status}}</p>
+    <br>
+    <p>select a file to upload to server</p>
+    <!--
+    <form id="uploadbanner" enctype="multipart/form-data" method="post" action="#">
+        <input id="fileupload" name="myfile" type="file" />
+        <input type="submit" value="submit" id="submit" />
+     </form>
+    -->
+    <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();"></input>
+
+</div>
+<script>
+    var width=0, height=0;
+    var filedata = '';
+    var permission_to_update = 0;
+    var socket = io();
+    var app = new Vue({
+        el:"#app",
+        data:{
+            status:''
+        },
+        created() {
+            socket.on('send_data', (data)=>{
+                //console.log("client recv from server"); 
+                if(!permission_to_update)this.status = "reload the page and then restart python script"  
+                this.status = data;
+                this.create_image(data.slice(1, data.length-1).split(" ") )
+                
+                //this.create_image(JSON.parse(data));
+                //simplify for parsing black and white
+            });
+            socket.on('recv_disconnect', ()=>{
+                permission_to_update =0;
+            })
+            socket.on('update_hw' , (data)=>{
+                // want to resize the height and width of the image
+                // convert hw back into a dict
+                obj = JSON.parse(data);
+                height = obj['h'];
+                width = obj['w'];
+                console.log("UPDATING HW")
+                permission_to_update = 1;       //make the user require sending a h/w before updating
+            });
+        },
+        methods:{
+            create_image:create_image,
+        }
+    });
+    function update_chosen(){
+        let file = document.getElementById("fileid").files[0];
+        var reader = new FileReader(file); 
+        reader.onload = function() {
+            // data is in reader.result
+            filedata = reader.result;
+            socket.emit('filedata', (filedata))
+            console.log(reader.result.length)
+        }
+        reader.readAsDataURL(file); // read as BASE64 format
+        
+    }
+    
+    function build_canvas(srcdata){
+        let canvas = document.createElement(canvas_id);
+        canvas.width = width
+        canvas.height = height;
+
+        let context = canvas.getContext('2d');
+        let image_data = context.createImageData(width, height);
+
+        let i_image=0;
+        for(let i = 0; i < width*height; i++){
+
+            let bw = 0xff;
+            if(srcdata[i] == '1'){
+                bw = 0x00;
+            }
+             
+            //use black and white for cheaper computation
+            image_data.data[i_image++] = bw
+            image_data.data[i_image++] = bw
+            image_data.data[i_image++] = bw
+            image_data.data[i_image++] = 0xff
+        }
+        
+        context.putImageData(image_data, 0, 0);
+        return canvas;
+    }
+
+    //add initial element to DOM
+    const canvas_id = 'canvas'
+    var canvas = document.createElement(canvas_id);
+    document.body.appendChild(canvas)
+
+    function create_image(msg){
+        console.log(msg)
+        if(!permission_to_update){
+            return;
+        }
+        console.log("creating img")
+        document.body.removeChild(canvas);
+        canvas = build_canvas(msg);
+        console.log(canvas)
+        canvas.setAttribute('style', "width:300px; height:300px;");
+        document.body.appendChild(canvas).style.border = "thick solid #0f00ff"
+
+    }
+
+</script>
+
+</html>
+
+
+<!--https://stackoverflow.com/questions/46979807/how-to-play-music-from-local-folder-in-html-audio-control-->

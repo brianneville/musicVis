@@ -8,6 +8,8 @@ from queue import Queue
 from scipy.io.wavfile import read as read_wavefile
 from pydub import AudioSegment
 
+np.set_printoptions(threshold=np.inf)
+
 def test():
     time.sleep(3)
     # http://jamie-wong.com/2016/08/05/webgl-fluid-simulation/
@@ -44,13 +46,13 @@ def sethw(h, w):
 
 class MusicDisp():
 
-    def __init__(self, q, portnum=3000,addr='127.0.0.1', max_buf=25000000, ): # max file len = 25Mb
+    def __init__(self, q, portnum=3000,addr='127.0.0.1', max_buf=25000000): # max file len = 25Mb
         self.portnum = portnum
         self.q = q
         self.addr = addr
         self.max_buf = max_buf
         self.recent_mp3_fname = 'out.mp3'
-        # self.recent_wav_fname = 'out.wav'
+        self.bars_rate = 4      # 4 bars/sec
 
     def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -60,18 +62,12 @@ class MusicDisp():
             self.q.put(recv)
 
     def create_waveform(self):
-        """
-        sound = AudioSegment.from_mp3(self.recent_mp3_fname)
-        sound.export(self.recent_wav_fname, format="wav")
-        contents = read_wavefile(self.recent_wav_fname)
-        data = np.fromstring(sound._data, np.int16)
-        fs = contents.frame_rate
-        """
+
         audio = AudioSegment.from_mp3(self.recent_mp3_fname)
         duration=len(audio)//1000  # duration in seconds
         data = np.fromstring(audio._data, np.int16)
 
-        section_len = len(data)//(4*duration)
+        section_len = len(data)//(self.bars_rate*duration)
         section_count = len(data)//section_len
         print(f"{section_count} sections, each of length {section_len} data items")
         outputs = np.array([], dtype=int)
@@ -94,28 +90,54 @@ class MusicDisp():
 
 
     def send_periodic(self, waveform, max_val):
-        width = height = 10
+        width = height = 30
         disp_arr = np.zeros((width*height,), dtype=int).reshape((width, height))
         sethw(height, width)
         # scale all the max values to fit in this height
-        section_left = 0
-        while section_left + width < len(waveform):
-            # take a section of waveform, map it, send it, and advance secion by 1 until done
-            disp_sections = waveform[section_left:section_left + width]
+        section_right = 0
+        # ------------------------- initial
+        # create initial waveform of song
+        """
+        disp_sections = waveform[0:section_right]
+        bar_height = disp_sections*height
 
-            bar_height = disp_sections*height
+        # initial population of display array
+        for i in range(0, width):
+            stop_bar = round(bar_height[i])     # draw bar up to this height
+            disp_arr[i][0:int(stop_bar)] = 1
 
-            if not section_left:
-                for i in range(0, width):
-                    stop_bar = round(bar_height[i])     # draw bar up to this height
-                    disp_arr[i][0:int(stop_bar)] = 1
+        send_arr = np.rot90(disp_arr)
 
-                send_arr = np.rot90(disp_arr)
-                for k in range(0, 10):
-                    print(send_arr[k])
-#               
-                requests.get(f'http://localhost:3000/q/{send_arr.flatten()}', verify=False)
-            section_left += 1
+        requests.get(f'http://localhost:3000/q/{send_arr.flatten()}', verify=False)
+        section_right += 1
+        """
+        # ------------ rest of song
+        start = time.time()
+        end = None
+        sync_substract = 0  # subtract time that the script is working so that song doesnt go out of sync
+        while section_right < len(waveform) + width:
+            # get the next bar to add to the disp_array and shift all bars left to accomodate
+            next_wval = 0
+            if section_right < len(waveform):
+                next_wval = waveform[section_right]
+
+            stop_bar = round(next_wval*height)  # draw bar up to this height
+            disp_arr = np.roll(disp_arr, -1, axis=0)        # shift all items in array to the index ahead of them
+
+            disp_arr[width-1][0:int(stop_bar)] = 1  # insert new row
+            disp_arr[width-1][int(stop_bar):] = 0
+            # print(next)
+            # print(disp_arr[width-1])
+            send_arr = np.rot90(disp_arr)
+
+            requests.get(f'http://localhost:3000/q/{send_arr.flatten()}', verify=False)
+            section_right += 1
+            if end is None:
+                end = time.time()
+                sync_substract = start - end
+            time.sleep((1/self.bars_rate) - sync_substract-0.08)
+
+
 
 if __name__ == '__main__':
     shared_q = Queue()
@@ -136,6 +158,7 @@ if __name__ == '__main__':
                 waveform, max_val = m.create_waveform()
                 m.send_periodic(waveform, max_val)
                 break
+
 
 
 

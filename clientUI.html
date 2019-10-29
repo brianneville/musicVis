@@ -13,34 +13,39 @@
     <p>status: {{this.status}}</p>
     <br>
     <p>select a file to upload to server</p>
-    <!--
-    <form id="uploadbanner" enctype="multipart/form-data" method="post" action="#">
-        <input id="fileupload" name="myfile" type="file" />
-        <input type="submit" value="submit" id="submit" />
-     </form>
-    -->
-    <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();"></input>
 
+    <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();"></input>
+    <br>
+    
+    <audio id="audio_player" src="" controls="">update your browser for html5</audio>      
+    <!-- add controls that scroll the sound bars fowards and backwards-->
+    <br>
+    <button>Stop</button>
 </div>
 <script>
     var width=0, height=0;
     var filedata = '';
+    var playing_song=0;
     var permission_to_update = 0;
     var socket = io();
     var app = new Vue({
         el:"#app",
         data:{
-            status:''
+            status:'',
         },
         created() {
             socket.on('send_data', (data)=>{
                 //console.log("client recv from server"); 
                 if(!permission_to_update)this.status = "reload the page and then restart python script"  
-                this.status = data;
+                this.status = "incoming server stream" //data;
                 this.create_image(data.slice(1, data.length-1).split(" ") )
                 
-                //this.create_image(JSON.parse(data));
-                //simplify for parsing black and white
+                if(!playing_song){
+                    playing_song = 1
+                    let audio_elem = document.getElementById('audio_player');
+                    audio_elem.play();
+                }
+
             });
             socket.on('recv_disconnect', ()=>{
                 permission_to_update =0;
@@ -57,10 +62,19 @@
         },
         methods:{
             create_image:create_image,
+            update_chosen:update_chosen
+
         }
     });
     function update_chosen(){
+        this.begin_playing =0
         let file = document.getElementById("fileid").files[0];
+        let audio_elem = document.getElementById('audio_player');
+        audio_elem.src = URL.createObjectURL(file);
+        audio_elem.load();
+        if(playing_song){
+            playing_song = 0
+        }
         var reader = new FileReader(file); 
         reader.onload = function() {
             // data is in reader.result
@@ -105,15 +119,12 @@
     document.body.appendChild(canvas)
 
     function create_image(msg){
-        console.log(msg)
         if(!permission_to_update){
             return;
         }
-        console.log("creating img")
         document.body.removeChild(canvas);
         canvas = build_canvas(msg);
-        console.log(canvas)
-        canvas.setAttribute('style', "width:300px; height:300px;");
+        canvas.setAttribute('style', "width:600px; height:400px;");
         document.body.appendChild(canvas).style.border = "thick solid #0f00ff"
 
     }
@@ -121,6 +132,3 @@
 </script>
 
 </html>
-
-
-<!--https://stackoverflow.com/questions/46979807/how-to-play-music-from-local-folder-in-html-audio-control-->

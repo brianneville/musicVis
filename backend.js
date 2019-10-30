@@ -21,6 +21,8 @@ let sock_access = null
 var filedata = ''
 
 var most_recent_response = null
+var update_hw_response = null
+
 io.on('connection', (socket) => {
     sock_access = socket
     console.log("found connection!!")
@@ -37,13 +39,16 @@ io.on('connection', (socket) => {
         if(most_recent_response != null){
             most_recent_response.send(filedata)     
         }
-
+    });
+    socket.on("timing_info", (data)=>{
+        //return timing info to pybackend
+        update_hw_response.send(data)
     });
 
 });
 
 function update_hw(request, response){
-    response.send("")
+    update_hw_response = response
     let data = request.params.hw
     sock_access.emit('update_hw', (data));
 

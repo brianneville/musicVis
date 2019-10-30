@@ -39,9 +39,13 @@ def test():
             time.sleep(frame)
 
 
-def sethw(h, w):
+def finddelay_sethw(h, w):
     obj = {'h': h, 'w': w}
-    requests.get(f'http://localhost:3000/p/{json.dumps(obj)}', verify=False)
+    t0 = time.time()
+    client_return_time = requests.get(f'http://localhost:3000/p/{json.dumps(obj)}', verify=False)
+    rtt_total = (time.time() - t0)
+    print(rtt_total, client_return_time.text)
+    return (rtt_total - float(client_return_time.text)/1000)/2
 
 
 class MusicDisp():
@@ -86,15 +90,17 @@ class MusicDisp():
                     if v > ovr_max:
                         ovr_max = v
                 full += 1
-        return outputs/ovr_max, ovr_max
+        return outputs/ovr_max
 
 
-    def send_periodic(self, waveform, max_val):
+    def send_periodic(self, waveform):
         width = height = 30
         disp_arr = np.zeros((width*height,), dtype=int).reshape((width, height))
-        sethw(height, width)
+        parsing_and_travel = finddelay_sethw(height, width)
+        print(f'delay_time is {parsing_and_travel}')
         # scale all the max values to fit in this height
         section_right = 0
+
         # ------------------------- initial
         # create initial waveform of song
         """
@@ -113,8 +119,7 @@ class MusicDisp():
         """
         # ------------ rest of song
         start = time.time()
-        end = None
-        sync_substract = 0  # subtract time that the script is working so that song doesnt go out of sync
+        sync_substract = None  # subtract time that the script is working so that song doesnt go out of sync
         while section_right < len(waveform) + width:
             # get the next bar to add to the disp_array and shift all bars left to accomodate
             next_wval = 0
@@ -126,24 +131,19 @@ class MusicDisp():
 
             disp_arr[width-1][0:int(stop_bar)] = 1  # insert new row
             disp_arr[width-1][int(stop_bar):] = 0
-            # print(next)
-            # print(disp_arr[width-1])
+
             send_arr = np.rot90(disp_arr)
-
-            requests.get(f'http://localhost:3000/q/{send_arr.flatten()}', verify=False)
+            requests.get(f'http://localhost:3000/q/{(send_arr.flatten()).tolist()}', verify=False)
             section_right += 1
-            if end is None:
-                end = time.time()
-                sync_substract = start - end
-            time.sleep((1/self.bars_rate) - sync_substract-0.08)
-
+            if sync_substract is None:
+                sync_substract = time.time() - start
+            time.sleep((1 / self.bars_rate) + sync_substract - 0.08 - parsing_and_travel) # 0.210889625549316406
 
 
 if __name__ == '__main__':
     shared_q = Queue()
     m = MusicDisp(shared_q)
     m.listen()
-
 
     while 1:
         if not shared_q.empty():
@@ -155,10 +155,9 @@ if __name__ == '__main__':
                 item = base64.b64decode(item)
                 with open("out.mp3", 'wb+') as f:
                     f.write(item)
-                waveform, max_val = m.create_waveform()
-                m.send_periodic(waveform, max_val)
+                waveform = m.create_waveform()
+                m.send_periodic(waveform)
                 break
-
 
 
 

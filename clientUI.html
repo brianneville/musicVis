@@ -38,8 +38,8 @@
                 //console.log("client recv from server"); 
                 if(!permission_to_update)this.status = "reload the page and then restart python script"  
                 this.status = "incoming server stream" //data;
-                this.create_image(data.slice(1, data.length-1).split(" ") )
-                
+
+                this.create_image(JSON.parse(data)) //data.slice(1, data.length-1).split(" ") )                
                 if(!playing_song){
                     playing_song = 1
                     let audio_elem = document.getElementById('audio_player');
@@ -53,11 +53,24 @@
             socket.on('update_hw' , (data)=>{
                 // want to resize the height and width of the image
                 // convert hw back into a dict
+                //unrelated to create_image
+                let t0 = performance.now()
                 obj = JSON.parse(data);
                 height = obj['h'];
                 width = obj['w'];
                 console.log("UPDATING HW")
                 permission_to_update = 1;       //make the user require sending a h/w before updating
+                
+                // now test how long the frame computation takes to run, and send that back to python
+                let test_str = new Array().fill(0);
+                test_str = JSON.stringify(test_str)
+                let excludetime = performance.now() - t0;
+                //add on time taken for create_image
+                this.create_image(JSON.parse(test_str))
+                
+                // send time to exclude back to python to get rtt
+                socket.emit('timing_info', (excludetime.toString()))
+
             });
         },
         methods:{

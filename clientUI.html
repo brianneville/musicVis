@@ -62,13 +62,14 @@
                 permission_to_update = 1;       //make the user require sending a h/w before updating
                 
                 // now test how long the frame computation takes to run, and send that back to python
+                // probably more relevant for slower computers
                 let test_str = new Array().fill(0);
                 test_str = JSON.stringify(test_str)
                 let excludetime = performance.now() - t0;
                 //add on time taken for create_image
                 this.create_image(JSON.parse(test_str))
                 
-                // send time to exclude back to python to get rtt
+                // send 'time to exclude' back to python to get rtt for pure data trasfer stuff
                 socket.emit('timing_info', (excludetime.toString()))
 
             });

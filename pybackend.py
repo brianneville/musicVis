@@ -5,14 +5,12 @@ import json
 import base64
 import socket
 from queue import Queue
-from scipy.io.wavfile import read as read_wavefile
 from pydub import AudioSegment
 
 np.set_printoptions(threshold=np.inf)
 
 def test():
     time.sleep(3)
-    # http://jamie-wong.com/2016/08/05/webgl-fluid-simulation/
     msg = [0, 0, 0, 0,  # white, white, white, white
            0, 0, 1, 0,  # white, red, green, white
            0, 1, 0, 1,  # white, blue, yellow, white
@@ -44,7 +42,6 @@ def finddelay_sethw(h, w):
     t0 = time.time()
     client_return_time = requests.get(f'http://localhost:3000/p/{json.dumps(obj)}', verify=False)
     rtt_total = (time.time() - t0)
-    print(rtt_total, client_return_time.text)
     return (rtt_total - float(client_return_time.text)/1000)/2
 
 
@@ -71,8 +68,8 @@ class MusicDisp():
         duration=len(audio)//1000  # duration in seconds
         data = np.fromstring(audio._data, np.int16)
 
-        section_len = len(data)//(self.bars_rate*duration)
-        section_count = len(data)//section_len
+        section_len = len(data)//(self.bars_rate*duration)      # number of data samples per section (bar)
+        section_count = len(data)//section_len      # number of sections
         print(f"{section_count} sections, each of length {section_len} data items")
         outputs = np.array([], dtype=int)
         ovr_max = 0
@@ -97,27 +94,10 @@ class MusicDisp():
         width = height = 30
         disp_arr = np.zeros((width*height,), dtype=int).reshape((width, height))
         parsing_and_travel = finddelay_sethw(height, width)
-        print(f'delay_time is {parsing_and_travel}')
         # scale all the max values to fit in this height
         section_right = 0
 
-        # ------------------------- initial
-        # create initial waveform of song
-        """
-        disp_sections = waveform[0:section_right]
-        bar_height = disp_sections*height
-
-        # initial population of display array
-        for i in range(0, width):
-            stop_bar = round(bar_height[i])     # draw bar up to this height
-            disp_arr[i][0:int(stop_bar)] = 1
-
-        send_arr = np.rot90(disp_arr)
-
-        requests.get(f'http://localhost:3000/q/{send_arr.flatten()}', verify=False)
-        section_right += 1
-        """
-        # ------------ rest of song
+        # ------------ draw song
         start = time.time()
         sync_substract = None  # subtract time that the script is working so that song doesnt go out of sync
         while section_right < len(waveform) + width:
@@ -137,15 +117,16 @@ class MusicDisp():
             section_right += 1
             if sync_substract is None:
                 sync_substract = time.time() - start
-            time.sleep((1 / self.bars_rate) + sync_substract - 0.08 - parsing_and_travel) # 0.210889625549316406
+            time.sleep((1 / self.bars_rate) + sync_substract - 0.08 - parsing_and_travel)
+            # this 0.08 is a bit arbitraty but seems to work great
 
 
 if __name__ == '__main__':
     shared_q = Queue()
     m = MusicDisp(shared_q)
     m.listen()
-
     while 1:
+
         if not shared_q.empty():
             item = shared_q.get().decode()
             item = item[item.rfind('\r\n') + len('\r\n'):] # remove http header
@@ -157,39 +138,4 @@ if __name__ == '__main__':
                     f.write(item)
                 waveform = m.create_waveform()
                 m.send_periodic(waveform)
-                break
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""
-msg = {'r': [
-    0xff, 0xff, 0xff, 0xff,  # white, white, white, white
-    0xff, 0x00, 0xff, 0xff,  # white, red, green, white
-    0xff, 0x00, 0x00, 0xff,  # white, blue, yellow, white
-    0xff, 0xff, 0xff, 0xff,  # white, white, white, white
-], 'g': [
-    0xff, 0xff, 0xff, 0xff,  # white, white, white, white
-    0xff, 0x00, 0x00, 0xff,  # white, red, green, white
-    0xff, 0x00, 0xff, 0xff,  # white, blue, yellow, white
-    0xff, 0xff, 0xff, 0xff,  # white, white, white, white
-], 'b': [
-    0xff, 0xff, 0xff, 0xff,  # white, white, white, white
-    0xff, 0x00, 0x00, 0xff,  # white, red, green, white
-    0xff, 0xff, 0x00, 0xff,  # white, blue, yellow, white
-    0xff, 0xff, 0xff, 0xff,  # white, white, white, white
-]}
-"""

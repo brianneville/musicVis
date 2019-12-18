@@ -1,27 +1,91 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>testing communication</title>
+    <title>musicVis</title>
     <script src ="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
     <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-
-
 </head>
 
-<div id="app">
-    <p>status: {{this.status}}</p>
-    <br>
-    <p>select a file to upload to server</p>
-
-    <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();"></input>
-    <br>
+<body style="background-color:#4f3939"><!--#ae6957"> -->
     
-    <audio id="audio_player" src="" controls="">update your browser for html5</audio>      
+<style>
+    .content {
+        max-width: 700px;
+        margin: auto;
+    }
+</style>
+
+<style>
+    .wrapper{
+        background: #d6cdb8;
+        max-width: 700px;
+        margin:auto;
+        padding: 10px;
+    }
+
+</style>
+<!-- #d2b299;-->
+<style>
+    .customButton {
+        box-shadow:inset 0px 1px 0px 0px #ffffff;
+        background:linear-gradient(to bottom, #ffffff 5%, #f6f6f6 100%);
+        background-color:#ffffff;
+        border-radius:6px;
+        border:1px solid #dcdcdc;
+        display:inline-block;
+        cursor:pointer;
+        color:#666666;
+        font-family:Arial;
+        font-size:15px;
+        font-weight:bold;
+        padding:6px 24px;
+        text-decoration:none;
+        text-shadow:0px 1px 0px #ffffff;
+    }
+    .customButton:hover {
+        background:linear-gradient(to bottom, #f6f6f6 5%, #ffffff 100%);
+        background-color:#f6f6f6;
+    }
+    .customButton:active {
+        position:relative;
+        top:1px;
+    }
+</style>
+
+<style>
+    .customfont{
+        font-family: Trebuchet MS, Helvetica, sans-serif; letter-spacing: 1px; word-spacing: 2px;
+        color: #41271f;
+        font-weight: normal;
+        text-decoration: none;
+        font-style: normal;
+        font-variant: normal;
+        text-transform: none;
+    }
+</style>
+
+
+<div class = "wrapper">
+<div id="app" class="content customfont">  
+    <h3>Music Visualiser</h3>
+    <p>Stream status: {{this.status}}</p>
+    
+    <p>Select a file to upload, then wait for the visualiser to start. Please stop the player before reloading the page, or leaving the site</p>
+
+    <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();" class="customButton" style="width:60%;margin-left:auto;margin-right:auto;display:block;"></input>  
+    <hr style="border: 2px solid #aa6f62;" />
+    <audio id="audio_player" src="" controls="" style="display:block;width:60%;margin-left:auto;margin-right:auto">update your browser for html5</audio>      
     <!-- add controls that scroll the sound bars fowards and backwards-->
     <br>
-    <button>Stop</button>
+    <button v-on:click="controlStop" class= "customButton">Stop</button>
+    <hr style="border: 2px solid #aa6f62;" />
+    <br>
+
+
 </div>
+</div>
+</body>
 <script>
     var width=0, height=0;
     var filedata = '';
@@ -76,10 +140,20 @@
         },
         methods:{
             create_image:create_image,
-            update_chosen:update_chosen
-
+            update_chosen:update_chosen,
+            controlStop:controlStop
         }
     });
+    function controlStop(){
+        socket.emit("set_control_flags", ("stop"));
+        let audio_elem = document.getElementById('audio_player');
+        audio_elem.src = '';
+        audio_elem.pause();
+        playing_song = 0
+        setTimeout(()=>{this.status = "stopped stream" }, 250);
+    }
+
+
     function update_chosen(){
         this.begin_playing =0
         let file = document.getElementById("fileid").files[0];
@@ -101,7 +175,7 @@
     }
     
     function build_canvas(srcdata){
-        let canvas = document.createElement(canvas_id);
+        let canvas = document.createElement('canvas');
         canvas.width = width
         canvas.height = height;
 
@@ -109,38 +183,64 @@
         let image_data = context.createImageData(width, height);
 
         let i_image=0;
+        let step = 255/width;
+        let col = 0;
+        let bw = 0xff;
         for(let i = 0; i < width*height; i++){
-
-            let bw = 0xff;
+            
             if(srcdata[i] == '1'){
-                bw = 0x00;
+                bw = (255-col)
+                if(bw <0 )console.log("bw error")
             }
-             
-            //use black and white for cheaper computation
-            image_data.data[i_image++] = bw
-            image_data.data[i_image++] = bw
-            image_data.data[i_image++] = bw
+            col = (col + step);   //col = 255- (col + 255/width)%255; interesting
+            if (col >= 255)col %= 255;
+            //use black and white to distinguish
+            image_data.data[i_image++] = bw  
+            image_data.data[i_image++] = bw  
+            image_data.data[i_image++] = bw 
             image_data.data[i_image++] = 0xff
+            bw = 0xff
+            
         }
         
         context.putImageData(image_data, 0, 0);
         return canvas;
     }
 
-    //add initial element to DOM
-    const canvas_id = 'canvas'
-    var canvas = document.createElement(canvas_id);
-    document.body.appendChild(canvas)
+    function build_mirror(oldcanvas){
+        let canvas = document.createElement('canvas');
+        canvas.width = width
+        canvas.height = height;
 
+        let context = canvas.getContext('2d');
+        context.drawImage(oldcanvas, 0, 0);
+        return canvas;
+    }
+
+
+
+    //add initial element to DOM
+    var canvas = document.createElement('canvas');
+    document.getElementById('app').appendChild(canvas);
+    
+    var mirrorcanv= document.createElement('canvas');
+    document.getElementById('app').appendChild(mirrorcanv);
+    
     function create_image(msg){
         if(!permission_to_update){
             return;
         }
-        document.body.removeChild(canvas);
+        document.getElementById('app').removeChild(canvas);
         canvas = build_canvas(msg);
-        canvas.setAttribute('style', "width:600px; height:400px;");
-        document.body.appendChild(canvas).style.border = "thick solid #0f00ff"
-
+        canvas.setAttribute('style', "width:95%; height:225px;margin-left:auto;margin-right:auto;display:block"); //used to be 600, 400; 700, 450
+        // use style= "transform:scaleX(-1)"
+        document.getElementById('app').appendChild(canvas)//.style.border = "thick solid #0f00ff"
+        
+        document.getElementById('app').removeChild(mirrorcanv);
+        mirrorcanv = build_mirror(canvas)
+        mirrorcanv.setAttribute('style', "width:95%; height:225px;margin-left:auto;margin-right:auto;transform:scaleY(-1);display:block")
+        document.getElementById('app').appendChild(mirrorcanv)//.style.border = "thick solid #0f00ff"
+        
     }
 
 </script>

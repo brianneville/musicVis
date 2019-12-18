@@ -62,6 +62,7 @@ class MusicDisp():
             recv = s.recv(self.max_buf)
             self.q.put(recv)
 
+
     def create_waveform(self):
 
         audio = AudioSegment.from_mp3(self.recent_mp3_fname)
@@ -113,29 +114,38 @@ class MusicDisp():
             disp_arr[width-1][int(stop_bar):] = 0
 
             send_arr = np.rot90(disp_arr)
-            requests.get(f'http://localhost:3000/q/{(send_arr.flatten()).tolist()}', verify=False)
+            control_flags = requests.get(f"http://localhost:3000/q/{(send_arr.flatten()).tolist()}", verify=False)
+
             section_right += 1
             if sync_substract is None:
                 sync_substract = time.time() - start
-            time.sleep((1 / self.bars_rate) + sync_substract - 0.08 - parsing_and_travel)
-            # this 0.08 is a bit arbitraty but seems to work great
-
+            time.sleep((1 / self.bars_rate) + sync_substract - 0.0805 - parsing_and_travel)
+            # this 0.08 is a bit arbitrary but seems to work great
+            if control_flags.text == "stop":
+                print("stopped stream")
+                break
 
 if __name__ == '__main__':
     shared_q = Queue()
-    m = MusicDisp(shared_q)
-    m.listen()
     while 1:
+        m = MusicDisp(shared_q)
+        m.listen()
 
         if not shared_q.empty():
             item = shared_q.get().decode()
             item = item[item.rfind('\r\n') + len('\r\n'):] # remove http header
             if item:
                 print('song received')
+
                 item = item[item.find(',')+1:]
                 item = base64.b64decode(item)
                 with open("out.mp3", 'wb+') as f:
                     f.write(item)
                 waveform = m.create_waveform()
+                print("stream started")
                 m.send_periodic(waveform)
+
+                with shared_q.mutex:
+                    shared_q.queue.clear()
+
 

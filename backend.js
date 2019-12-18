@@ -22,6 +22,7 @@ var filedata = ''
 
 var most_recent_response = null
 var update_hw_response = null
+var control_flags = "";
 
 io.on('connection', (socket) => {
     sock_access = socket
@@ -29,20 +30,27 @@ io.on('connection', (socket) => {
     
     socket.on('disconnect', () => {
         console.log("A user disconnected");
-        sock_access.emit('recv_disconnect')
+        sock_access.emit('recv_disconnect');
+        //control_flags = '';
     });
     
     socket.on('filedata', (data)=>{
         console.log("updating filedata on server")
+        control_flags = "";
         filedata = data;
         console.log(filedata.length)
         if(most_recent_response != null){
-            most_recent_response.send(filedata)     
+            most_recent_response.send(filedata)   
+            filedata= '';  
         }
     });
     socket.on("timing_info", (data)=>{
         //return timing info to pybackend
         update_hw_response.send(data)
+    });
+    socket.on("set_control_flags", (data) =>{
+        control_flags = data;
+        console.log("set control flags to:" + data);
     });
 
 });
@@ -55,7 +63,8 @@ function update_hw(request, response){
 }
 
 function pythonsays(request, response){
-    response.send("")
+    //can send information back to python in return value - e.g. stop, pause, skip
+    response.send(control_flags)
     let data = request.params.msg;
     sock_access.emit('send_data', (data));
 }
@@ -66,6 +75,7 @@ function send_file_back(request, response){
     if(filedata != ''){     // account for the multiple different orders in which the .py and the html could occur
         response.send(filedata)
         most_recent_response = null
+        filedata = '';
     }else{
         most_recent_response = response
     }

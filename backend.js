@@ -14,6 +14,8 @@ app.get('/p/:hw/', update_hw);
 
 app.get('/getfile/', send_file_back)
 
+app.get('/controlpause/', unpause)
+
 http.listen(3000, () => {
     console.log('Listening on port: 3000');
 });
@@ -23,6 +25,7 @@ var filedata = ''
 var most_recent_response = null
 var update_hw_response = null
 var control_flags = "";
+var resume_response = null
 
 io.on('connection', (socket) => {
     sock_access = socket
@@ -51,6 +54,9 @@ io.on('connection', (socket) => {
     socket.on("set_control_flags", (data) =>{
         control_flags = data;
         console.log("set control flags to:" + data);
+        if(control_flags == 'resume'){
+            resume_response.send('resume')
+        }
     });
 
 });
@@ -78,5 +84,15 @@ function send_file_back(request, response){
         filedata = '';
     }else{
         most_recent_response = response
+    }
+}
+
+function unpause(request, response){
+    console.log("unpause func has control flags as:", control_flags);
+    if(control_flags != 'pause'){ 
+        sock_access.emit('resume');
+        
+    }else{
+        resume_response = response;
     }
 }

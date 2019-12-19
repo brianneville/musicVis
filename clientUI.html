@@ -4,7 +4,7 @@
     <title>musicVis</title>
     <script src ="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
-    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <!--<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>-->
 </head>
 
 <body style="background-color:#4f3939"><!--#ae6957"> -->
@@ -25,7 +25,6 @@
     }
 
 </style>
-<!-- #d2b299;-->
 <style>
     .customButton {
         box-shadow:inset 0px 1px 0px 0px #ffffff;
@@ -65,25 +64,48 @@
     }
 </style>
 
+<style>
+    .volwrapper{
+        background:#f6f6f6;
+        background-color:#ffffff;
+        border-radius:6px;
+        border:1px solid #dcdcdc;
+        display:inline-block;
+        color:#666666;
+        font-family:Arial;
+        font-size:15px;
+        font-weight:bold;
+        padding:6px 24px;
+        text-decoration:none;
+        text-shadow:0px 1px 0px #ffffff;
+    }
+</style>
 
 <div class = "wrapper">
-<div id="app" class="content customfont">  
-    <h3>Music Visualiser</h3>
-    <p>Stream status: {{this.status}}</p>
-    
-    <p>Select a file to upload, then wait for the visualiser to start. Please stop the player before reloading the page, or leaving the site</p>
+    <div id="app" class="content customfont">  
+        <h3>Music Visualiser</h3>
+        <p>Stream status: {{this.status}}</p>
+        
+        <p>Select a file to upload, then wait for the visualiser to start. Please stop the player before reloading the page or leaving the site</p>
 
-    <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();" class="customButton" style="width:60%;margin-left:auto;margin-right:auto;display:block;"></input>  
-    <hr style="border: 2px solid #aa6f62;" />
-    <audio id="audio_player" src="" controls="" style="display:block;width:60%;margin-left:auto;margin-right:auto">update your browser for html5</audio>      
-    <!-- add controls that scroll the sound bars fowards and backwards-->
-    <br>
-    <button v-on:click="controlStop" class= "customButton">Stop</button>
-    <hr style="border: 2px solid #aa6f62;" />
-    <br>
+        <input type="file" id="fileid" name="filename" accept="audio/*" onchange="update_chosen();" class="customButton" style="width:60%;margin-left:auto;margin-right:auto;display:block;"></input>  
+        <hr style="border: 2px solid #aa6f62;" />
+        <audio id="audio_player" src="" controls volume= '0.5' style="display:None;width:60%;margin-left:auto;margin-right:auto">update your browser for html5</audio>      
+        <!--TODO: add controls that scroll the sound bars fowards and backwards-->
+        <div style='text-align: center;'>
+            <button v-on:click="controlStop" class= "customButton" style='display: inline-block;'>Stop stream</button>
+            <button v-on:click="controlPause" class= "customButton"style='display: inline-block;'>{{this.pauseState}}</button>
+            <div class= "volwrapper customfont">
+                <!--<div style="border-left: 3px solid #aa6f62; display: inline; margin:10px"></div>-->
+                <label style= 'display: inline-block;' >Volume</label>
+                <input id="volslider" type="range" min="0" max="100" step="5" style="height: 12px" oninput="set_volume(this.value);" onchange="set_volume(this.value);"v-model.number="vol"></input>
+                <label style= 'display: inline-block;' >{{(vol/100).toFixed(2)}}</label>
+            </div>
+        </div>
 
-
-</div>
+        <hr style="border: 2px solid #aa6f62;" />
+        <br>
+    </div>
 </div>
 </body>
 <script>
@@ -96,6 +118,8 @@
         el:"#app",
         data:{
             status:'',
+            pauseState:'pause',
+            vol:'100'
         },
         created() {
             socket.on('send_data', (data)=>{
@@ -104,17 +128,25 @@
                 this.status = "incoming server stream" //data;
 
                 this.create_image(JSON.parse(data)) //data.slice(1, data.length-1).split(" ") )                
-                if(!playing_song){
+                if(!playing_song && this.pauseState != 'resume'){
                     playing_song = 1
                     let audio_elem = document.getElementById('audio_player');
                     audio_elem.play();
                 }
-
+                
             });
             socket.on('recv_disconnect', ()=>{
                 permission_to_update =0;
             })
+
+            socket.on('resume', ()=>{
+                controlPause()
+            })
+
             socket.on('update_hw' , (data)=>{
+                //inform user on status
+                this.status = 'preparing stream'
+
                 // want to resize the height and width of the image
                 // convert hw back into a dict
                 //unrelated to create_image
@@ -136,15 +168,25 @@
                 // send 'time to exclude' back to python to get rtt for pure data trasfer stuff
                 socket.emit('timing_info', (excludetime.toString()))
 
+                
+
             });
         },
         methods:{
             create_image:create_image,
             update_chosen:update_chosen,
-            controlStop:controlStop
+            controlStop:controlStop,
+            controlPause:controlPause,
         }
     });
+
+    function set_volume(newvol) {
+        let audio_elem = document.getElementById('audio_player');
+        audio_elem.volume = newvol / 100;
+    }
     function controlStop(){
+        if(!permission_to_update)return;
+        if(this.pauseState == 'resume')return;        
         socket.emit("set_control_flags", ("stop"));
         let audio_elem = document.getElementById('audio_player');
         audio_elem.src = '';
@@ -152,6 +194,20 @@
         playing_song = 0
         setTimeout(()=>{this.status = "stopped stream" }, 250);
     }
+    function controlPause(){
+        if(!permission_to_update)return;
+        let audio_elem = document.getElementById('audio_player');
+        socket.emit("set_control_flags", (this.pauseState));
+        if(this.pauseState == 'pause'){
+            this.pauseState = 'resume';
+            playing_song = 0;
+            //account for the approximate sync delay on pausing between client and servers
+            setTimeout(()=>{this.status = "paused stream"; audio_elem.pause();}, 400); 
+        }else{
+            this.pauseState = 'pause';
+        }
+    }
+
 
 
     function update_chosen(){
@@ -192,8 +248,8 @@
                 bw = (255-col)
                 if(bw <0 )console.log("bw error")
             }
-            col = (col + step);   //col = 255- (col + 255/width)%255; interesting
-            if (col >= 255)col %= 255;
+            col = (col + step);   //col = 255- (col + 255/width)%255; interesting tiered effect
+            if (col >= 255)col %= 255;      // fade the black to white in steps 
             //use black and white to distinguish
             image_data.data[i_image++] = bw  
             image_data.data[i_image++] = bw  

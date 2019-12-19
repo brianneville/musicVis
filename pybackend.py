@@ -9,33 +9,6 @@ from pydub import AudioSegment
 
 np.set_printoptions(threshold=np.inf)
 
-def test():
-    time.sleep(3)
-    msg = [0, 0, 0, 0,  # white, white, white, white
-           0, 0, 1, 0,  # white, red, green, white
-           0, 1, 0, 1,  # white, blue, yellow, white
-           0, 0, 0, 0]  # white, white, white, white
-
-    requests.get(f'http://localhost:3000/q/{np.array(msg)}', verify=False)
-    time.sleep(2)
-
-    frame = 1/24   # seconds per frame
-    width = height = 10
-
-    sethw(height, width)
-    arr_len = width*height
-    arr = np.zeros(arr_len, dtype=int)
-
-    prev_i = -1
-    while 1:
-        for i in range(0, arr_len):
-            arr[i] = 1
-            if 1 + prev_i:
-                arr[prev_i] = 0
-            prev_i = i
-            requests.get(f'http://localhost:3000/q/{arr}', verify=False)
-            time.sleep(frame)
-
 
 def finddelay_sethw(h, w):
     obj = {'h': h, 'w': w}
@@ -47,7 +20,7 @@ def finddelay_sethw(h, w):
 
 class MusicDisp():
 
-    def __init__(self, q, portnum=3000,addr='127.0.0.1', max_buf=25000000): # max file len = 25Mb
+    def __init__(self, q, portnum=3000,addr='127.0.0.1', max_buf=25000000):  # max file len = 25Mb
         self.portnum = portnum
         self.q = q
         self.addr = addr
@@ -121,6 +94,10 @@ class MusicDisp():
                 sync_substract = time.time() - start
             time.sleep((1 / self.bars_rate) + sync_substract - 0.0805 - parsing_and_travel)
             # this 0.08 is a bit arbitrary but seems to work great
+
+            if control_flags.text == 'pause':
+                # print("paused stream")
+                control_flags = requests.get(   f"http://localhost:3000/controlpause", verify=False)
             if control_flags.text == "stop":
                 print("stopped stream")
                 break
@@ -128,7 +105,7 @@ class MusicDisp():
 if __name__ == '__main__':
     shared_q = Queue()
     while 1:
-        m = MusicDisp(shared_q)
+        m = MusicDisp(shared_q)     # new object to protect against buffer overflow on recv?
         m.listen()
 
         if not shared_q.empty():
@@ -144,7 +121,7 @@ if __name__ == '__main__':
                 waveform = m.create_waveform()
                 print("stream started")
                 m.send_periodic(waveform)
-
+                print("stream ended")
                 with shared_q.mutex:
                     shared_q.queue.clear()
 

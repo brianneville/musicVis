@@ -127,7 +127,11 @@
                 if(!permission_to_update)this.status = "reload the page and then restart python script"  
                 this.status = "incoming server stream" //data;
 
-                this.create_image(JSON.parse(data)) //data.slice(1, data.length-1).split(" ") )                
+                this.create_image(JSON.parse(data)) //data.slice(1, data.length-1).split(" ") )
+                /*to consider: 
+                is the slowdown from no compression on transit worth the increase in speed from not having to
+                compress and decompress the stream at both ends?
+                */
                 if(!playing_song && this.pauseState != 'resume'){
                     playing_song = 1
                     let audio_elem = document.getElementById('audio_player');
@@ -137,15 +141,14 @@
             });
             socket.on('recv_disconnect', ()=>{
                 permission_to_update =0;
-            })
+            });
 
             socket.on('resume', ()=>{
                 controlPause()
-            })
+            });
 
             socket.on('update_hw' , (data)=>{
                 //inform user on status
-                this.status = 'preparing stream'
 
                 // want to resize the height and width of the image
                 // convert hw back into a dict
@@ -167,9 +170,14 @@
                 
                 // send 'time to exclude' back to python to get rtt for pure data trasfer stuff
                 socket.emit('timing_info', (excludetime.toString()))
-
-                
-
+            });
+        
+            socket.on('streamend', ()=>{
+                //let client know stream ended on server side
+                permission_to_update = 0;
+                this.status = 'stream ended';
+                let file_elem = document.getElementById('fileid');
+                file_elem.value = '';
             });
         },
         methods:{
@@ -192,7 +200,7 @@
         audio_elem.src = '';
         audio_elem.pause();
         playing_song = 0
-        setTimeout(()=>{this.status = "stopped stream" }, 250);
+        setTimeout(()=>{this.status = "stream ended" }, 250);
     }
     function controlPause(){
         if(!permission_to_update)return;
@@ -208,9 +216,8 @@
         }
     }
 
-
-
     function update_chosen(){
+        app.status = 'preparing stream';
         this.begin_playing =0
         let file = document.getElementById("fileid").files[0];
         let audio_elem = document.getElementById('audio_player');

@@ -97,7 +97,7 @@ class MusicDisp():
 
             if control_flags.text == 'pause':
                 # print("paused stream")
-                control_flags = requests.get(   f"http://localhost:3000/controlpause", verify=False)
+                control_flags = requests.get(f"http://localhost:3000/controlpause", verify=False)
             if control_flags.text == "stop":
                 print("stopped stream")
                 break
@@ -106,11 +106,15 @@ if __name__ == '__main__':
     shared_q = Queue()
     while 1:
         m = MusicDisp(shared_q)     # new object to protect against buffer overflow on recv?
-        m.listen()
+        try:
+            m.listen()
+        except (ConnectionResetError, ConnectionRefusedError):
+            # occurs when backend.js is started after pybackend
+            time.sleep(3)
 
         if not shared_q.empty():
             item = shared_q.get().decode()
-            item = item[item.rfind('\r\n') + len('\r\n'):] # remove http header
+            item = item[item.rfind('\r\n') + len('\r\n'):]  # remove http header
             if item:
                 print('song received')
 
@@ -122,6 +126,7 @@ if __name__ == '__main__':
                 print("stream started")
                 m.send_periodic(waveform)
                 print("stream ended")
+                requests.get(f"http://localhost:3000/end/", verify=False)
                 with shared_q.mutex:
                     shared_q.queue.clear()
 

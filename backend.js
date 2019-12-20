@@ -12,9 +12,11 @@ app.get('/q/:msg/', pythonsays);
 
 app.get('/p/:hw/', update_hw);
 
-app.get('/getfile/', send_file_back)
+app.get('/getfile/', send_file_back);
 
-app.get('/controlpause/', unpause)
+app.get('/controlpause/', unpause);
+
+app.get('/end/', streamend);
 
 http.listen(3000, () => {
     console.log('Listening on port: 3000');
@@ -34,7 +36,8 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log("A user disconnected");
         sock_access.emit('recv_disconnect');
-        //control_flags = '';
+        control_flags = '';
+        filedata = '';
     });
     
     socket.on('filedata', (data)=>{
@@ -95,4 +98,9 @@ function unpause(request, response){
     }else{
         resume_response = response;
     }
+}
+
+function streamend(request, response){
+    sock_access.emit('streamend');
+    response.send('');
 }

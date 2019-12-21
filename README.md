@@ -24,19 +24,16 @@ python pybackend.py
 [Click here and download the video](https://github.com/brianneville/musicVis/blob/master/demo/musicVis_demo.mp4 "github.com/brianneville/musicVis...")
 (hosted in this repo)
 
+Recorded with Xbox Game bar, which for some reason ommits a portion of the visualiser on the left hand side. See screenshots for the actual visuals
+
 ## Screencaps
 
 ![Screencap 0][0]
-![Screencap 1][1]
 ![Screencap 2][2]
 ![Screencap 3][3]
-![Screencap 4][4]
 ![Screencap 5][5]
 
 [0]: https://github.com/brianneville/musicVis/blob/master/demo/screencap/0.png
-[1]: https://github.com/brianneville/musicVis/blob/master/demo/screencap/1.png
 [2]: https://github.com/brianneville/musicVis/blob/master/demo/screencap/2.png
 [3]: https://github.com/brianneville/musicVis/blob/master/demo/screencap/3.png
-[4]: https://github.com/brianneville/musicVis/blob/master/demo/screencap/4.png
 [5]: https://github.com/brianneville/musicVis/blob/master/demo/screencap/5.png
-
